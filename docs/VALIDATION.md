@@ -14,7 +14,7 @@ node --test tests/*.test.cjs
 python3 scripts/check_public.py
 ```
 
-**231 tests locaux passent.** La démonstration a aussi été ouverte dans Chrome : navigation vers une fiche, formulaire « Corriger moi-même », sauvegarde d’une correction fictive et affichage de son auteur/motif. Aucune donnée réelle n’a été utilisée pour cette vérification.
+**238 tests locaux passent.** La démonstration a aussi été ouverte dans Chrome : navigation vers une fiche, formulaire « Corriger moi-même », sauvegarde d’une correction fictive et affichage de son auteur/motif. Aucune donnée réelle n’a été utilisée pour cette vérification.
 
 Les tests portent sur les plages et calendriers, les permissions, l’authentification, les révisions, le stockage groupé, les documents, les coordonnées, l’identité, les notifications, l’aide et les corrections. Les tests de fonctions spécifiques à la candidate 3.5 ne sont pas inclus : ces fonctions ne font pas partie de la base distribuée.
 

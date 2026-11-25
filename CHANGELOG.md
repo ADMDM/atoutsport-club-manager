@@ -1,5 +1,11 @@
 # Historique public
 
+## 1.0.1 — 25 novembre 2026
+
+- Suivi mensuel limité aux personnes ayant des heures prévues ou déclarées sur le mois choisi.
+- Remplaçants conservés même sans horaire habituel ; anciennes prestations conservées après désactivation.
+- Les fiches sans heures restent enregistrées mais ne gonflent plus les compteurs du suivi.
+
 ## 1.0.0 — 25 novembre 2026
 
 - Première édition publique réutilisable de la base applicative 3.4.

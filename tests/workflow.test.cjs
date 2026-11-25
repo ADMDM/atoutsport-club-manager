@@ -268,6 +268,53 @@ test('tableau direction distingue heures déclarées pour dates écoulées et pr
 });
 
 function manualPerson(h){h.c.people.push({id:'D1',name:'Dana',active:true,sourceMode:'MANUAL'});return {id:'dance-user',role:'MONITOR',name:'Dana',email:'dana@example.test',monitorId:'D1'};}
+test('suivi : seuls les moniteurs avec des heures prévues sont à recevoir',()=>{
+ const h=harness();h.c.pExpected_=(month,id)=>id==='M1'?[line()]:[];
+ const rows=h.c.pDashboard_(director,{month:'2026-10'}).rows;
+ assert.deepEqual(clone(rows.map(r=>r.monitorId)),['M1']);assert.equal(rows[0].status,'MISSING');
+ assert.equal(rows[0].expectedMinutes,120);assert.equal(rows[0].workedMinutes,0);
+ assert.equal(h.data.TIMESHEETS.length,0);assert.equal(h.audit.length,0);
+});
+test('suivi : brouillons vides et fiches sans heures de travail sont masqués',()=>{
+ const h=harness();h.c.expected=[];
+ const draft=h.c.pSaveDraft_(monitor,{month:'2026-10',revision:0,lines:[]});
+ assert.equal(h.c.pDashboard_(director,{month:'2026-10'}).rows.length,0);
+ const absence=submit(h,[line({type:'ABSENCE'})],other,'Aucune séance prévue');
+ assert.equal(absence.sheet.status,'SUBMITTED');assert.equal(h.c.pDashboard_(director,{month:'2026-10'}).rows.length,0);
+ assert.equal(h.data.TIMESHEETS.length,2);assert.ok(h.c.pMonth_(director,{month:'2026-10',monitorId:'M1'}).exists);
+ assert.equal(h.data.TIMESHEETS.find(s=>s.id===draft.sheet.id).revision,1);
+});
+test('suivi : un remplacement déclaré apparaît sans horaire habituel et malgré la désactivation ultérieure',()=>{
+ const h=harness();h.c.expected=[];
+ submit(h,[line({type:'REMPLACEMENT',replacedMonitorId:'M2',sourceRef:'Séance remplacée'})]);
+ h.c.people[0].active=false;
+ const rows=h.c.pDashboard_(director,{month:'2026-10'}).rows;
+ assert.deepEqual(clone(rows.map(r=>r.monitorId)),['M1']);assert.equal(rows[0].workedMinutes,120);assert.equal(rows[0].expectedMinutes,0);
+});
+test('suivi : un remplacement du planning apparaît même sans fiche ni statut actif',()=>{
+ const h=harness();h.c.people[0].active=false;
+ h.c.pExpected_=(month,id)=>id==='M1'?[line({origin:'REMPLACEMENT:EX1',replacedMonitorId:'M2'})]:[];
+ const rows=h.c.pDashboard_(director,{month:'2026-10'}).rows;
+ assert.deepEqual(clone(rows.map(r=>r.monitorId)),['M1']);assert.equal(rows[0].status,'MISSING');assert.equal(rows[0].expectedMinutes,120);
+});
+test('suivi : ancien planning d’un inactif masqué, heures réellement déclarées conservées',()=>{
+ const h=harness();submit(h);h.c.people.forEach(p=>p.active=false);
+ const rows=h.c.pDashboard_(director,{month:'2026-10'}).rows;
+ assert.deepEqual(clone(rows.map(r=>r.monitorId)),['M1']);assert.equal(rows[0].workedMinutes,120);
+});
+test('suivi : la présence dans la liste est recalculée pour le mois sélectionné',()=>{
+ const h=harness();h.c.pExpected_=(month,id)=>month==='2026-10'&&id==='M1'?[line()]:[];
+ assert.equal(h.c.pDashboard_(director,{month:'2026-10'}).rows.length,1);
+ assert.equal(h.c.pDashboard_(director,{month:'2026-11'}).rows.length,0);
+ h.c.pSaveDraft_(other,{month:'2026-11',revision:0,lines:[line({date:'2026-11-05',type:'REMPLACEMENT',replacedMonitorId:'M1',sourceRef:'Séance ponctuelle'})]});
+ assert.deepEqual(clone(h.c.pDashboard_(director,{month:'2026-11'}).rows.map(r=>r.monitorId)),['M2']);
+ assert.deepEqual(clone(h.c.pDashboard_(director,{month:'2026-10'}).rows.map(r=>r.monitorId)),['M1']);
+});
+test('suivi : une absence déclarée ne masque pas les heures attendues d’un actif',()=>{
+ const h=harness();submit(h,[line({type:'ABSENCE'})]);
+ const row=h.c.pDashboard_(director,{month:'2026-10'}).rows.find(r=>r.monitorId==='M1');
+ assert.equal(row.expectedMinutes,120);assert.equal(row.workedMinutes,0);assert.equal(row.status,'SUBMITTED');
+});
 test('fiche manuelle : activité explicite, aucun planning ni justification de faux écart, validation directeur',()=>{
  const h=harness(),actor=manualPerson(h);h.c.pExpected_=()=>{throw Error('Planning piscine interdit pour fiche manuelle');};
  let v=h.c.pMonth_(actor,{month:'2026-10'});assert.equal(v.sourceMode,'MANUAL');assert.equal(v.hasPlanningBaseline,false);assert.equal(v.expected.length,0);assert.equal(v.summary.expectedMinutes,null);
@@ -281,7 +328,10 @@ test('fiches manuelles restent personnelles, inactifs bloqués et directeur voit
  const h=harness(),actor=manualPerson(h);
  assert.throws(()=>h.c.pMonth_(monitor,{month:'2026-10',monitorId:'D1'}),/non autorisé/);
  assert.throws(()=>h.c.pSaveDraft_(actor,{month:'2026-10',revision:0,monitorId:'M1',lines:[]}),/non autorisé/);
+ assert.ok(!h.c.pDashboard_(director,{month:'2026-10'}).rows.some(r=>r.monitorId==='D1'));
+ const draft=h.c.pSaveDraft_(actor,{month:'2026-10',revision:0,lines:[line({activity:'Danse'})]});
  const board=h.c.pDashboard_(director,{month:'2026-10'}),row=board.rows.find(r=>r.monitorId==='D1');assert.equal(row.sourceMode,'MANUAL');assert.equal(row.expectedMinutes,null);assert.equal(row.differenceMinutes,null);
+ h.c.pSaveDraft_(actor,{month:'2026-10',revision:draft.sheet.revision,lines:[]});
  h.c.people.find(p=>p.id==='D1').active=false;assert.throws(()=>h.c.pSaveDraft_(actor,{month:'2026-10',revision:0,lines:[]}),/inactive/);
  assert.ok(!h.c.pDashboard_(director,{month:'2026-10'}).rows.some(r=>r.monitorId==='D1'));
 });

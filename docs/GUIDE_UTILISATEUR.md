@@ -18,6 +18,12 @@ Un envoi n’est pas une validation ni un paiement. Une fiche retournée doit ê
 
 Dans **Mes coordonnées**, compléter ses informations et suivre le parcours de vérification pour changer d’adresse email. Dans **Mes documents**, consulter les documents autorisés et déposer les pièces demandées. Un dépôt de contrat signé doit encore être contrôlé par la direction.
 
+## Suivi des prestations
+
+Le tableau affiche les personnes qui ont des heures prévues ou déclarées pour le mois sélectionné. Une personne sans heures est masquée, même si son compte est actif. Les compteurs suivent cette même liste.
+
+Un remplaçant apparaît dès que son remplacement est enregistré dans le planning ou dans sa fiche, même sans horaire habituel. Les heures déjà déclarées restent consultables dans le suivi des anciens mois après la désactivation d’une personne ; son ancien planning habituel seul ne suffit pas à l’afficher. Les fiches masquées et les personnes restent conservées.
+
 ## Pour la direction : deux façons de corriger
 
 Ouvrir **Suivi mensuel → Consulter → Contrôle de la fiche**.

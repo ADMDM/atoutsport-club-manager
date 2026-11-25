@@ -60,7 +60,7 @@ async function route(action,p){
   s.directorCorrection={name:actor.name,actorId:actor.id,at:new Date().toISOString(),reason:p.comment};s.revision++;return view(s);
  }
  if(p.decision==='APPROVE'&&!view(s).canApprove)throw Error('Validation finale indisponible.');s.status={RETURN:'RETURNED',APPROVE:'APPROVED',REOPEN:'RETURNED'}[p.decision];s.comment=p.comment;s.revision++;return view(s)}
- if(action==='dashboard')return {month:p.month,deadline:deadline(p.month),correctionDeadline:correctionDeadline(p.month),reminderDates:reminderDates(p.month),rows:people.map(m=>{const s=sheet(p.month,m.id),v=view(s);return {monitorId:m.id,name:m.name,sourceMode:v.sourceMode,hasPlanningBaseline:v.hasPlanningBaseline,status:s.status,sheetId:s.id,revision:s.revision,late:today>deadline(p.month)&&s.status==='DRAFT',...v.summary,hasForecast:v.hasForecast,forecast:v.forecast,dueCents:v.finance?.dueCents,paidCents:0,balanceCents:v.finance?.balanceCents}})};
+ if(action==='dashboard')return {month:p.month,deadline:deadline(p.month),correctionDeadline:correctionDeadline(p.month),reminderDates:reminderDates(p.month),rows:people.map(m=>{const s=sheet(p.month,m.id),v=view(s);if(!(v.summary.workedMinutes>0||m.active&&v.summary.expectedMinutes>0||v.expected.some(l=>(l.replacedMonitorId||String(l.origin||'').startsWith('REMPLACEMENT:'))&&mins(l)>0)))return null;return {monitorId:m.id,name:m.name,sourceMode:v.sourceMode,hasPlanningBaseline:v.hasPlanningBaseline,status:s.status,sheetId:s.id,revision:s.revision,late:today>deadline(p.month)&&s.status==='DRAFT',...v.summary,hasForecast:v.hasForecast,forecast:v.forecast,dueCents:v.finance?.dueCents,paidCents:0,balanceCents:v.finance?.balanceCents}}).filter(Boolean)};
  if(action==='documents')return {rows:documents.filter(d=>staff||d.visibility==='PRIVATE'&&d.monitorId===actor.monitorId||d.visibility==='POOL'&&sourceMode(actor.monitorId)==='POOL')};
  if(action==='uploadDocument'){const d={id:crypto.randomUUID(),...p,status:'TO_REVIEW',createdAt:new Date().toISOString(),revision:1,monitorId:p.monitorId||actor.monitorId};documents.push(d);return d}
  if(action==='downloadDocument'){const d=documents.find(x=>x.id===p.id);if(d.base64)return {filename:d.filename,mime:d.mime,base64:d.base64};return {filename:'exemple.txt',mime:'text/plain',base64:btoa('Document de demonstration uniquement.')}}
@@ -71,7 +71,7 @@ async function route(action,p){
  if(action==='users')return {rows:users};
  if(action==='inviteUser'){const u={...p,id:crypto.randomUUID(),revision:1,active:true};users.push(u);return {user:u,queued:true}}
  if(action==='changeUser'){const u=users.find(x=>x.id===p.id);Object.assign(u,p,{revision:u.revision+1});return u}
- if(action==='diagnostic')return {configured:true,notificationsEnabled:false,pending:2,failed:0,sourceCheckedAt:today+'T11:00:00Z',poolMonitors:3,version:'1.0.0 — démonstration'};
+ if(action==='diagnostic')return {configured:true,notificationsEnabled:false,pending:2,failed:0,sourceCheckedAt:today+'T11:00:00Z',poolMonitors:3,version:'1.0.1 — démonstration'};
  if(action==='completeGuide'){actor.guideVersion=35;return {completed:true};}
  if(action==='monthlyStatus')return {installed:true,enabled:false,closeDay:6,rows:[],lastRun:''};
  if(action==='disputes')return {rows:[]};

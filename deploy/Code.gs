@@ -1027,10 +1027,14 @@ function pSubmit_(actor,payload) {
 function pDashboard_(actor,payload) {
   if(!pReviewer_(actor))throw new Error('Accès réservé aux responsables.');
   const month=pMonthValue_(payload.month),today=pToday_();
-  const rows=pPeople_().filter(m=>m.active||pFindSheet_(month,m.id)).map(m=>{
+  const rows=pPeople_().map(m=>{
     const view=pViewMonth_(actor,month,m.id),s=view.sheet,sum=view.summary,f=view.finance;
+    // Le suivi porte sur l’activité du mois, pas sur toute la liste des personnes.
+    // Un remplaçant sans horaire habituel reste visible, même marqué inactif.
+    const replacementExpected=view.expected.some(line=>(line.replacedMonitorId||String(line.origin||'').startsWith('REMPLACEMENT:'))&&pLineMinutes_(line)>0);
+    if(!(sum.workedMinutes>0||m.active&&sum.expectedMinutes>0||replacementExpected))return null;
     return {monitorId:m.id,name:m.name,sourceMode:view.sourceMode,hasPlanningBaseline:view.hasPlanningBaseline,poolWorkedMinutes:sum.poolWorkedMinutes,manualWorkedMinutes:sum.manualWorkedMinutes,status:view.exists?s.status:'MISSING',sheetId:s.id,revision:s.revision,workedMinutes:sum.workedMinutes,performedMinutes:sum.performedMinutes,forecastMinutes:sum.forecastMinutes,forecast:view.forecast,hasForecast:view.hasForecast,expectedMinutes:sum.expectedMinutes,differenceMinutes:sum.differenceMinutes,late:today>pDeadline_(month)&&['DRAFT','RETURNED'].includes(s.status),dueCents:f.dueCents,paidCents:f.paidCents,balanceCents:f.balanceCents,warnings:[...sum.warnings,...f.warnings],active:m.active};
-  });
+  }).filter(Boolean);
   return {rows,month,deadline:pDeadline_(month),correctionDeadline:pCorrectionDeadline_(month),reminderDates:pReminderDates_(month)};
 }
 function pCheckReplacementConflicts_(sheet,all) {
