@@ -1,0 +1,102 @@
+<style>
+#directorCorrectionDialog{width:min(980px,94vw);max-width:94vw;max-height:90dvh;padding:0;border:1px solid #d6e1e2;border-radius:14px;color:#173e48;background:white}
+#directorCorrectionDialog::backdrop{background:#153b4d99}
+#directorCorrectionDialog form{padding:24px;display:grid;gap:18px}
+#directorCorrectionDialog .dc-line{padding:16px;border:1px solid #dce5e6;border-radius:10px;margin:12px 0}
+#directorCorrectionDialog .dc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#directorCorrectionDialog label{display:grid;gap:6px;font-size:13px;font-weight:600}
+#directorCorrectionDialog [hidden]{display:none!important}
+#directorCorrectionDialog input,#directorCorrectionDialog select,#directorCorrectionDialog textarea{width:100%;min-width:0;box-sizing:border-box;padding:10px;border:1px solid #b8cbce;border-radius:7px;font:inherit;background:white;color:inherit}
+#directorCorrectionDialog .dc-wide{grid-column:1/-1}
+#directorCorrectionDialog .dc-line-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+#directorCorrectionDialog .dc-foot{display:flex;flex-wrap:wrap;gap:10px}
+#directorCorrectionDialog .dc-error{color:#aa342c;white-space:pre-wrap}
+#directorCorrectionDialog .dc-hint{padding:12px;background:#eef7f7;border-radius:8px;line-height:1.5}
+@media(max-width:650px){#directorCorrectionDialog .dc-grid{grid-template-columns:1fr 1fr}#directorCorrectionDialog form{padding:16px}}
+</style>
+<script>
+(() => {
+  'use strict';
+  const escape = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const labels = {NORMAL:'Prestation normale',ABSENCE:'Absence',REMPLACEMENT:'Remplacement',SUPPLEMENT:'Heures supplémentaires',RATTRAPAGE_COURS:'Rattrapage de cours',RECUPERATION:'Récupération'};
+  const selectOptions = (items, value) => items.map(([v,label]) => `<option value="${escape(v)}" ${v===value?'selected':''}>${escape(label)}</option>`).join('');
+  function decorate() {
+    if (typeof page === 'undefined' || page !== 'hours' || typeof monthData === 'undefined' || !monthData || typeof actor === 'undefined' || !actor) return;
+    const main = document.getElementById('main'), sheet = monthData.sheet;
+    if (!main || !sheet) return;
+    const correction = sheet.directorCorrection;
+    if (correction && !main.querySelector('[data-director-correction-notice]')) {
+      const notice = document.createElement('div');
+      notice.className = 'notice';notice.dataset.directorCorrectionNotice = 'true';
+      const title = document.createElement('strong');
+      title.textContent = 'Correction par '+(correction.name || 'la direction')+' le '+new Date(correction.at).toLocaleString('fr-BE');
+      const detail = document.createElement('p');detail.textContent = correction.reason;
+      notice.append(title,detail);main.prepend(notice);
+    }
+    const panel = [...main.querySelectorAll('section')].find(n => n.querySelector('h2')?.textContent === 'Contrôle de la fiche');
+    if (!panel) return;
+    const info = [...panel.querySelectorAll('p')].find(n => n.textContent.includes('La déclaration reste attribuée au moniteur.'));
+    if (info) info.textContent = actor.role === 'DIRECTOR'
+      ? 'Choisissez : demander une correction au moniteur ou corriger vous-même la fiche. L’historique conserve l’auteur et les versions précédentes.'
+      : 'Vous pouvez demander une correction au moniteur. La direction peut aussi corriger la fiche elle-même.';
+    if (actor.role !== 'DIRECTOR' || monthData.exists === false || !['DRAFT','RETURNED','SUBMITTED'].includes(sheet.status) || panel.querySelector('[data-director-correct]')) return;
+    const button = document.createElement('button');button.type='button';button.dataset.directorCorrect='true';button.textContent='Corriger moi-même';
+    button.onclick = openCorrection;
+    (panel.querySelector('.buttons') || panel).prepend(button);
+  }
+  function openCorrection() {
+    if (busy || actor.role !== 'DIRECTOR') return;
+    if (dirty && !confirmLeave()) return;
+    const view = monthData, original = view.sheet;
+    if (!original || !['DRAFT','RETURNED','SUBMITTED'].includes(original.status)) return;
+    let rows = structuredClone(original.lines || []), changed = false, saving = false;
+    const dialog = document.createElement('dialog');dialog.id='directorCorrectionDialog';dialog.setAttribute('aria-labelledby','dcTitle');
+    const personName = typeof monitorName === 'function' ? monitorName(original.monitorId) : 'Moniteur';
+    dialog.innerHTML = `<form><div><h2 id="dcTitle">Corriger moi-même la fiche</h2><p>${escape(personName)} · ${escape(original.month)}</p></div><div class="dc-hint">Modifiez les plages puis indiquez le motif. La fiche corrigée sera à vérifier ; sa validation définitive reste séparée. Les versions précédentes et votre nom seront conservés dans l’historique.</div><div id="dcLines"></div><button type="button" id="dcAdd">Ajouter une plage</button><label>Explication des changements dans la fiche<textarea id="dcDeclaration" maxlength="2000">${escape(original.declarationNote || '')}</textarea></label><label>Motif de votre correction (obligatoire)<textarea id="dcReason" required maxlength="2000" placeholder="Ex. Fin du cours corrigée après vérification du planning."></textarea></label><div class="dc-error" role="alert" id="dcError"></div><div class="dc-foot"><button type="button" id="dcCancel">Annuler</button><button type="submit" class="primary">Enregistrer la correction</button></div></form>`;
+    document.body.append(dialog);
+    const form=dialog.querySelector('form'), list=dialog.querySelector('#dcLines');
+    const peopleList=(typeof people!=='undefined' && people.length ? people : typeof team!=='undefined' ? team : []).filter(p=>p.id!==original.monitorId);
+    const activityList=[...new Set([...(view.activities||[]),...rows.map(r=>r.activity||'Natation')])];
+    const field=(label,key,type,value,extra='')=>`<label>${label}<input data-key="${key}" type="${type}" value="${escape(value)}" ${extra}></label>`;
+    function renderRows(){
+      list.innerHTML=rows.map((r,i)=>`<section class="dc-line" data-index="${i}"><div class="dc-line-head"><strong>Plage ${i+1}</strong><button type="button" data-remove="${i}">Retirer cette plage</button></div><div class="dc-grid">${field('Date','date','date',r.date,'required min="'+original.month+'-01"')}${field('Début','start','time',r.start,'required')}${field('Fin','end','time',r.end,'required')}<label>Type<select data-key="type">${selectOptions(Object.entries(labels),r.type||'NORMAL')}</select></label>${field('Pause en minutes','breakMinutes','number',r.breakMinutes||0,'required min="0" max="1439" step="1"')}<label>Activité<select data-key="activity" required>${selectOptions(activityList.map(a=>[a,a]),r.activity||'Natation')}</select></label><label class="dc-wide" data-replacement ${r.type==='REMPLACEMENT'?'':'hidden'}>Moniteur remplacé<select data-key="replacedMonitorId" ${r.type==='REMPLACEMENT'?'required':''}><option value="">Choisir une personne</option>${selectOptions(peopleList.map(p=>[p.id,p.name]),r.replacedMonitorId)}</select></label><label class="dc-wide">Cours ou heures d’origine<input data-key="sourceRef" maxlength="300" value="${escape(r.sourceRef)}" ${['REMPLACEMENT','RECUPERATION','RATTRAPAGE_COURS'].includes(r.type)?'required':''}></label><label class="dc-wide">Commentaire de la plage<textarea data-key="note" maxlength="1000">${escape(r.note)}</textarea></label>${r.recoveryId?'<p class="dc-wide">Cette plage est reliée à un crédit de récupération. Le crédit sera contrôlé lors de la validation.</p>':''}</div></section>`).join('') || '<p>Aucune plage. Vous pouvez ajouter une prestation ou expliquer la suppression des heures dans le motif.</p>';
+      list.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{rows.splice(Number(b.dataset.remove),1);changed=true;renderRows()});
+      list.querySelectorAll('[data-key]').forEach(input=>input.addEventListener('input',()=>{
+        const section=input.closest('[data-index]'),r=rows[Number(section.dataset.index)],key=input.dataset.key;
+        r[key]=key==='breakMinutes'?Number(input.value):input.value;changed=true;
+        if(key==='type'){
+          if(r.type==='ABSENCE')r.breakMinutes=0;
+          if(r.type!=='REMPLACEMENT')r.replacedMonitorId='';
+          if(!['RECUPERATION','RATTRAPAGE_COURS'].includes(r.type))r.recoveryId='';
+          renderRows();
+        }
+      }));
+    }
+    const beforeUnload=e=>{if(changed||saving){e.preventDefault();e.returnValue=''}};
+    window.addEventListener('beforeunload',beforeUnload);
+    function close(){if(saving)return;if(changed&&!window.confirm('Fermer sans enregistrer votre correction ?'))return;dialog.close()}
+    dialog.querySelector('#dcAdd').onclick=()=>{if(rows.length>=120)return;rows.push({id:crypto.randomUUID(),date:original.month+'-01',start:'09:00',end:'10:00',breakMinutes:0,type:'NORMAL',activity:activityList[0]||'Natation',note:'',sourceRef:'',recoveryId:'',replacedMonitorId:''});changed=true;renderRows()};
+    form.addEventListener('input',()=>{changed=true});
+    dialog.querySelector('#dcCancel').onclick=close;
+    dialog.addEventListener('cancel',e=>{e.preventDefault();close()});
+    dialog.addEventListener('close',()=>{window.removeEventListener('beforeunload',beforeUnload);dialog.remove()});
+    form.onsubmit=async e=>{
+      e.preventDefault();if(saving||busy)return;
+      const comment=dialog.querySelector('#dcReason').value.trim(),note=dialog.querySelector('#dcDeclaration').value;
+      const error=dialog.querySelector('#dcError');error.textContent='';
+      if(!comment){error.textContent='Expliquez le motif de votre correction.';return}
+      saving=true;setBusyState(true);
+      const controls=[...form.querySelectorAll('input,select,textarea,button')];controls.forEach(c=>c.disabled=true);
+      try{
+        const result=await api('review',{decision:'CORRECT',sheetId:original.id,revision:original.revision,lines:structuredClone(rows),declarationNote:note,comment});
+        monthData=result;lines=structuredClone(result.sheet.lines);declarationNote=result.sheet.declarationNote||'';dirty=false;changed=false;
+        dialog.close();renderMonth();notify('Correction enregistrée par la direction. La fiche reste à vérifier avant validation.');
+      }catch(ex){error.textContent=ex.message||'Enregistrement non confirmé. Rechargez la fiche avant de réessayer.'}
+      finally{saving=false;setBusyState(false);controls.forEach(c=>c.disabled=false)}
+    };
+    renderRows();dialog.showModal();dialog.querySelector('input,textarea')?.focus();
+  }
+  const main=document.getElementById('main');
+  if(main){new MutationObserver(decorate).observe(main,{childList:true,subtree:true});decorate()}
+})();
+</script>

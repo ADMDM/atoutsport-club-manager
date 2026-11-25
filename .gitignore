@@ -1,0 +1,21 @@
+# Identifiants et configurations locales
+.env
+.env.*
+!.env.example
+.clasp.json
+.clasprc.json
+*service-account*.json
+*credentials*.json
+*secrets*.json
+script-properties.json
+# Données locales
+private/
+backups/
+exports/
+logs/
+*.log
+# Outils
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store

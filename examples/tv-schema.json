@@ -1,0 +1,89 @@
+{
+  "SLIDES": [
+    "SlideID",
+    "Titre",
+    "ModeCreation",
+    "Image",
+    "Template",
+    "Message",
+    "DateDebut",
+    "DateFin",
+    "HeureDebut",
+    "HeureFin",
+    "JoursDeLaSemaine",
+    "DureeSecondes",
+    "Priorite",
+    "Frequence",
+    "Ordre",
+    "ModeAdaptation",
+    "Statut",
+    "Active",
+    "DerniereModification"
+  ],
+  "HORAIRES": [
+    "HoraireID",
+    "MoniteurID",
+    "JourSemaine",
+    "HeureDebut",
+    "HeureFin",
+    "DateDebut",
+    "DateFin",
+    "Actif",
+    "Commentaire"
+  ],
+  "EXCEPTIONS": [
+    "ExceptionID",
+    "Date",
+    "MoniteurID",
+    "Type",
+    "RemplacantID",
+    "HeureDebut",
+    "HeureFin",
+    "Active",
+    "Commentaire"
+  ],
+  "PRESENCES": [
+    "PresenceID",
+    "Date",
+    "MoniteurID",
+    "HeureDebut",
+    "HeureFin",
+    "Present",
+    "Commentaire"
+  ],
+  "MONITEURS": [
+    "MoniteurID",
+    "Prenom",
+    "Nom",
+    "NomAffiche",
+    "Fonction",
+    "Photo",
+    "DateNaissance",
+    "Ordre",
+    "Actif"
+  ],
+  "ANNIVERSAIRES": [
+    "AnniversaireID",
+    "Prenom",
+    "Nom",
+    "DateNaissance",
+    "Photo",
+    "Message",
+    "Active"
+  ],
+  "URGENCES": [
+    "UrgenceID",
+    "Titre",
+    "Message",
+    "DateDebut",
+    "DateFin",
+    "DureeSecondes",
+    "Frequence",
+    "Couleur",
+    "Active"
+  ],
+  "PARAMETRES": [
+    "Cle",
+    "Valeur"
+  ]
+}

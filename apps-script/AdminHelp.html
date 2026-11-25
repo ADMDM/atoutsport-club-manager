@@ -1,0 +1,367 @@
+<style>
+#help .admin-help-intro{display:grid;gap:12px}
+#help .admin-help-actions{display:flex;gap:8px;flex-wrap:wrap}
+#help .admin-help-catalog{display:grid;gap:12px;margin-top:20px}
+#help .admin-help-entry{padding:14px;border:1px solid var(--line);border-radius:10px;display:grid;gap:6px}
+#help .admin-help-entry h3{font-size:15px}
+#help .admin-help-entry p{font-size:14px;line-height:1.65}
+#help .admin-help-entry button{justify-self:start;font-size:13px;white-space:normal;text-align:left}
+#help .admin-help-steps{margin:8px 0;padding-left:24px}
+#help .admin-help-steps li{margin:9px 0}
+#help .admin-help-status{font-size:12px;color:var(--amber)}
+.admin-help-form-button{flex-shrink:0;white-space:normal!important}
+#adminHelpTour{position:fixed;inset:0;margin:0;padding:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:hidden}
+#adminHelpTour[open]{display:block}
+#adminHelpTour::backdrop{background:transparent;backdrop-filter:none}
+#adminHelpTour .admin-tour-ring{position:fixed;pointer-events:none;border:3px solid #55d4d0;border-radius:8px;box-shadow:0 0 0 200vmax #102f3cc4}
+#adminHelpTour .admin-tour-card{position:fixed;left:16px;bottom:16px;width:410px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);overflow:auto;background:white;padding:22px;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 44px #102f3c4d;display:grid;gap:14px}
+#adminHelpTour h2{font-size:20px;line-height:1.3;overflow-wrap:anywhere}
+#adminHelpTour p{font-size:14px;line-height:1.65}
+#adminHelpTour .admin-tour-footer{display:flex;gap:8px;flex-wrap:wrap}
+#adminHelpTour .admin-tour-footer .btn{white-space:normal;min-height:44px}
+#adminHelpTour .admin-tour-progress{font-size:12px;color:var(--muted)}
+#adminHelpTour .admin-tour-stop{justify-self:start;padding:8px 0;min-height:44px;border:0;background:transparent;color:var(--muted);text-decoration:underline}
+@media(max-width:560px){#adminHelpTour .admin-tour-card{padding:16px;max-height:55dvh;width:calc(100vw - 24px);max-width:none;left:12px;bottom:12px}#help .admin-help-actions .btn{flex:1;white-space:normal}.dialog-head:has(.admin-help-form-button){flex-wrap:wrap;gap:8px}}
+</style>
+<script>
+/* Contextual help is entirely local: no RPC, click on business controls,
+   route change, form submission, storage write or replacement of a form. */
+const AdminHelp = (() => {
+  'use strict';
+  const pages = {
+    MONITEURS: ['Équipe piscine', 'Retrouvez les personnes rattachées à la piscine et ouvrez leur dossier administratif.', ['Choisissez Actifs, Archivés ou Tous, puis recherchez une personne.', 'Ouvrez son dossier pour ses coordonnées, horaires, tarifs et documents.', 'Pour une nouvelle personne, utilisez Ajouter une personne.']],
+    TEAM_EXTRA: ['Stages et extrasport', 'Gérez les intervenants des stages et des activités extrasport à partir de leur fiche unique.', ['Filtrez par activité et recherchez une personne.', 'Ouvrez son dossier ou ajoutez une personne.', 'Vérifiez sa fonction et ses activités dans sa fiche.']],
+    DOSSIER: ['Dossier moniteur', 'Ce dossier rassemble les informations d’une personne et les opérations du mois choisi.', ['Choisissez le mois du dossier.', 'Ouvrez la rubrique voulue : coordonnées, horaires, finances ou documents.', 'Vérifiez les informations avant de les modifier.']],
+    HORAIRES: ['Planning piscine', 'La semaine habituelle sert de référence aux horaires piscine. Les dérogations datées se gèrent séparément.', ['Choisissez un jour ou Toute la semaine.', 'Ajoutez ou modifiez une plage et ses dates de validité.', 'Pour un événement ponctuel, utilisez Absences ou Par date.']],
+    EXCEPTIONS: ['Absences et remplacements', 'Adaptez une date précise : absence, remplacement ou changement d’horaire.', ['Choisissez le moniteur et la date.', 'Indiquez le type de modification et, si nécessaire, le remplaçant.', 'Deux heures limitent l’exception à une plage ; sans heures, elle concerne la journée.']],
+    PRESENCES: ['Planning par date', 'Un horaire par date remplace la semaine habituelle du moniteur pour cette journée.', ['Choisissez la personne et la date.', 'Renseignez les heures et vérifiez Présent ce jour.', 'Présent décoché signifie une absence pour toute la journée.']],
+    ARCHIVES: ['Planning supprimé', 'Retrouvez les entrées retirées du planning et restaurez celles qui doivent être réutilisées.', ['Repérez l’entrée et ses dates.', 'Restaurer la remet dans le planning après confirmation.']],
+    PAYROLL: ['Décomptes mensuels', 'Consultez les heures, le montant dû, les versements enregistrés et le solde pour un mois. Chaque dossier indique la source du calcul.', ['Choisissez le mois et le filtre À traiter, En veille ou Tous.', 'Ouvrez un dossier pour vérifier les heures, le tarif et les cotisations.', 'Enregistrez les versements déjà réalisés et contrôlez le solde.']],
+    PAIEMENTS: ['Versements', 'Ce registre conserve les paiements déjà effectués et met à jour le solde du mois. Il ne réalise aucun virement.', ['Choisissez le mois payé.', 'Ajoutez le montant réellement versé, la date et une référence.', 'Corrigez ou annulez une écriture erronée ; son historique est conservé.']],
+    AJUSTEMENTS: ['Corrections d’heures', 'Une correction ajoute ou retire des minutes au décompte avec un motif. Pour une déclaration validée, le circuit de rectification reste obligatoire.', ['Choisissez la personne et la date.', 'Saisissez uniquement la différence : +30 pour ajouter 30 minutes, −15 pour en retirer 15.', 'Expliquez le motif avant d’enregistrer.']],
+    REMUNERATIONS: ['Tarif et cotisations', 'Le tarif mensuel et les taux vérifiés déterminent le décompte. Ils sont distincts du tarif saisi dans un contrat.', ['Vérifiez la personne et le mois.', 'Renseignez le prix horaire et les deux taux applicables, y compris un zéro explicite.', 'Cochez la vérification des cotisations lorsque les taux sont confirmés.']],
+    CONTRACTS: ['Contrats', 'Préparez un brouillon, relisez son aperçu, générez le PDF et conservez la version signée.', ['Choisissez une personne et préparez ou reprenez son contrat.', 'Enregistrez le brouillon pour le compléter plus tard, puis vérifiez l’aperçu.', 'Générez le PDF, effectuez son envoi et importez ensuite la version signée.']],
+    DOCUMENTS: ['Documents des moniteurs', 'Retrouvez les contrats, attestations et documents privés des personnes autorisées.', ['Filtrez par moniteur ou recherchez un titre.', 'Ouvrez un document ou ajoutez un fichier de 10 Mo maximum.', 'Archivez un document si nécessaire ; le fichier est conservé.']],
+    SUIVI: ['Suivi mensuel', 'Suivez la réception administrative des fiches et les contrats à vérifier pour le mois choisi. La validation d’une déclaration se fait dans son parcours de prestations.', ['Choisissez le mois.', 'Vérifiez le statut de chaque fiche et du contrat.', 'Mettre à jour enregistre le suivi ; Voir les contrats ouvre les documents associés.']],
+    SEANCES: ['Séances et activités', 'Organisez les séances, leur encadrement, leur capacité et les inscriptions des enfants.', ['Créez une séance avec une activité, une date, un lieu et un moniteur.', 'Créez les fiches enfants puis inscrivez-les à la séance.', 'Consultez les inscrits et mettez à jour leur présence.']],
+    ENFANTS: ['Enfants', 'Ce registre privé conserve les fiches des enfants et le contact du responsable.', ['Recherchez une fiche avant d’en créer une.', 'Complétez les informations utiles et enregistrez.', 'Associez ensuite l’enfant à une séance dans Inscriptions.']],
+    INSCRIPTIONS: ['Inscriptions', 'Associez un enfant à une séance et suivez sa présence. Les places et les doublons sont contrôlés à l’enregistrement.', ['Choisissez une séance et une fiche enfant existantes.', 'Indiquez le statut : inscrit, présent, absent ou annulé.', 'Enregistrez puis vérifiez la liste des inscrits.']],
+    SLIDES: ['Slides', 'Préparez les textes, images et vidéos destinés à l’affichage.', ['Créez une slide et choisissez son contenu.', 'Vérifiez l’aperçu, la durée et les jours de diffusion.', 'Enregistrez puis publiez lorsque le contenu est prêt.']],
+    URGENCES: ['Messages urgents', 'Préparez un message prioritaire avec un début et une fin de diffusion.', ['Rédigez le message et vérifiez ses dates.', 'Activez la publication et enregistrez.', 'Le lecteur doit être allumé et connecté pour le recevoir.']],
+    ANNIVERSAIRES: ['Anniversaires', 'Gérez les anniversaires destinés à la slide automatique. Cette liste est distincte du registre privé des enfants.', ['Vérifiez les personnes et les dates.', 'Activez uniquement les anniversaires à diffuser.', 'Le mode d’affichage se choisit dans Réglages.']],
+    PARAMETRES: ['Réglages de l’écran', 'Réglez les messages d’accueil, les durées, la météo et la fréquence d’actualisation de l’affichage.', ['Recherchez un réglage.', 'Modifiez sa valeur puis enregistrez.', 'Vérifiez ensuite le résultat sur le lecteur connecté.']]
+  };
+  const dossierPages = {
+    PROFILE: ['Coordonnées du moniteur', 'Consultez la fiche équipe et ouvrez les parcours privés d’identité et de prestations.'],
+    PLANNING: ['Horaires et absences', 'Consultez et adaptez la semaine habituelle, les horaires par date, les absences et les remplacements de cette personne.'],
+    FINANCE: ['Tarif et paiements', 'Contrôlez le tarif mensuel, les heures, le montant dû, les versements et le solde de cette personne.'],
+    DOCUMENTS: ['Contrats et documents', 'Préparez un contrat et retrouvez les PDF et les pièces privées de cette personne.']
+  };
+  const actions = {
+    'Actualiser les données': 'Recharge les données de la page depuis le serveur. Utilisez-le après une modification effectuée ailleurs.',
+    'Ouvrir le dossier': 'Ouvre le dossier de cette personne : coordonnées, horaires, tarif, paiements, contrats et documents.',
+    'Modifier': 'Ouvre le formulaire de l’élément choisi. Les changements sont appliqués lorsque vous les enregistrez.',
+    'Modifier les coordonnées': 'Ouvre la fiche équipe pour corriger les coordonnées, la fonction, les activités et la photo.',
+    'Identité administrative · NISS': 'Ouvre le parcours privé de l’identité administrative, soumis aux droits de votre compte.',
+    'Prestations déclarées': 'Ouvre la déclaration de prestations de cette personne pour le mois choisi.',
+    'Déclaration du moniteur': 'Ouvre la fiche de prestations du moniteur, avec les contrôles et validations autorisés pour votre rôle.',
+    'Ouvrir les prestations': 'Ouvre la fiche de prestations de la personne et du mois sélectionnés.',
+    'Modifier le tarif mensuel': 'Ouvre le prix horaire et les cotisations du mois. Le tarif du contrat reste distinct.',
+    'Tarif et cotisations': 'Ouvre le tarif mensuel et les taux. Un taux de zéro doit être renseigné explicitement et les taux vérifiés.',
+    'Corriger les heures': 'Ouvre une correction motivée en minutes. Le serveur vérifie si la situation de la fiche autorise cette correction.',
+    'Détail et clôture': 'Affiche le détail du décompte et les actions de clôture ou réouverture disponibles selon la période et vos droits.',
+    'Clôturer le mois': 'Demande confirmation avant de figer le décompte. Avec le circuit mensuel activé, une fiche validée et la date de clôture atteinte sont nécessaires. Action réservée à la direction.',
+    'Rouvrir': 'Demande un motif pour rouvrir le décompte. Les versions précédentes restent conservées et une nouvelle validation sera nécessaire. Action réservée à la direction.',
+    'Enregistrer un versement': 'Ouvre la saisie d’un paiement déjà réalisé : montant, mois payé, date, moyen et référence. Aucun virement bancaire n’est exécuté.',
+    'Mettre en veille': 'Classe cette personne en veille dans le suivi des paiements. Une activité ou une écriture du mois peut la maintenir dans À traiter. Son compte et son planning restent actifs.',
+    'Retirer de la veille': 'Remet cette personne dans la liste À traiter des paiements, même pour un mois sans activité.',
+    'Exporter la sélection': 'Télécharge les décomptes correspondant au mois, au filtre et à la recherche affichés.',
+    'Préparer / reprendre un contrat': 'Ouvre le formulaire du contrat et reprend le brouillon enregistré lorsqu’il existe.',
+    'Préparer un contrat': 'Ouvre la préparation du contrat pour la personne choisie.',
+    'Nouveau contrat': 'Ouvre la préparation d’un contrat pour cette personne en conservant les PDF existants.',
+    'Générer un contrat': 'Permet de choisir une personne puis de préparer son contrat et son aperçu avant la génération du PDF.',
+    'Enregistrer le brouillon': 'Sauvegarde la préparation pour la reprendre plus tard, même incomplète. Cela ne génère pas de PDF.',
+    'Aperçu avant génération': 'Prépare un aperçu du contrat pour vérifier les informations avant de créer le PDF privé.',
+    'Générer le PDF privé': 'Crée une nouvelle version PDF du contrat après vérification des informations requises et de vos droits. Relisez d’abord l’aperçu.',
+    'Importer la version signée': 'Ouvre le dépôt du PDF signé et la déclaration de sa date de signature. Le contrat initial reste conservé. Action réservée à la direction.',
+    'Enregistrer la version signée': 'Dépose le PDF choisi après confirmation des signatures et enregistre sa date. Le statut reste déclaratif.',
+    'Noter comme envoyé': 'Enregistre la date d’un envoi que vous avez déjà effectué. Ce bouton n’envoie pas d’e-mail.',
+    'Enregistrer cet envoi': 'Sauvegarde la date d’envoi déclarée pour le contrat, sans expédier de message.',
+    'Ajouter un créneau': 'Ajoute une plage horaire au contrat en cours de préparation. Elle sera conservée avec le brouillon ou le PDF.',
+    'Retirer ce créneau': 'Retire cette plage de la préparation du contrat. Enregistrez ensuite le brouillon pour conserver la modification.',
+    'Ajouter un document': 'Ouvre le dépôt d’une pièce privée associée à un moniteur : PDF, DOCX, JPG ou PNG, jusqu’à 10 Mo.',
+    'Ouvrir': 'Ouvre ou télécharge le document choisi après contrôle de vos droits d’accès.',
+    'Ouvrir le PDF': 'Ouvre ou télécharge la version PDF existante du contrat.',
+    'Télécharger': 'Télécharge la pièce sélectionnée depuis son catalogue privé, après contrôle de vos droits.',
+    'Archiver': 'Retire le document du classement actif tout en conservant le fichier et son historique.',
+    'Restaurer': 'Remet l’élément archivé dans son classement actif après confirmation.',
+    'Retirer': 'Retire l’entrée du planning après confirmation. Une copie reste disponible dans Planning supprimé.',
+    'Supprimer': 'Demande confirmation avant le retrait de l’élément. Relisez le message qui précise les données conservées.',
+    'Réactiver': 'Réactive l’élément afin qu’il soit de nouveau pris en compte. Une confirmation peut être demandée.',
+    'Mettre à jour': 'Ouvre le formulaire du suivi administratif de cette personne et de ce mois. L’enregistrement ne constitue pas un envoi d’e-mail.',
+    'Voir les contrats': 'Ouvre les contrats en filtrant sur cette personne.',
+    'Voir les inscrits': 'Ouvre la liste des inscriptions pour cette séance.',
+    'Inscrire un enfant': 'Ouvre l’inscription d’une fiche enfant existante à cette séance. Les doublons et la capacité sont vérifiés.',
+    'Créer d’abord une fiche enfant': 'Ouvre le registre des enfants pour créer la fiche nécessaire à une inscription.',
+    'Séances et activités': 'Ouvre l’organisation des séances et des inscriptions.',
+    'Enregistrer la fiche': 'Sauvegarde la fiche équipe et ses activités dans les espaces concernés.',
+    'Enregistrer': 'Vérifie les champs obligatoires puis enregistre ce formulaire. En cas d’erreur, la saisie reste affichée pour correction.',
+    'Continuer': 'Passe à la préparation du contrat de la personne sélectionnée.',
+    'Annuler': 'Abandonne la saisie ou l’action en cours. Selon le formulaire, une confirmation protège les changements non enregistrés.',
+    'Fermer': 'Ferme cette fenêtre. Une saisie modifiée peut demander confirmation avant d’être abandonnée.',
+    'Aperçu': 'Affiche une prévisualisation du contenu en cours, sans le publier.',
+    'Publier': 'Demande confirmation pour rendre la slide diffusable, selon ses jours, dates et horaires.',
+    'Mettre en pause': 'Demande confirmation pour arrêter la diffusion de cette slide tout en conservant son contenu.',
+    'Tester la synchronisation': 'Ouvre les étapes pour vérifier l’enregistrement et la réception d’une slide sur le lecteur.',
+    'Réessayer': 'Retente le chargement qui a échoué. Vérifiez la connexion si le problème persiste.',
+    'Plus': 'Ouvre le menu complet sur téléphone ou tablette.',
+    'Coordonnées': 'Affiche les coordonnées et les accès privés à l’identité et aux prestations.',
+    'Horaires et absences': 'Affiche les horaires habituels, par date, les absences et les remplacements.',
+    'Tarif et paiements': 'Affiche le tarif du mois, le décompte et les versements de cette personne.',
+    'Contrats et documents': 'Affiche les contrats et les autres pièces privées de cette personne.',
+    'À traiter': 'Affiche les personnes à suivre, y compris celles en veille avec une activité ou une opération dans le mois.',
+    'En veille': 'Affiche les personnes explicitement en veille et sans activité à traiter pour le mois.',
+    'Tous': 'Affiche tous les éléments concernés, sans le filtre de statut.',
+    'Actifs': 'Affiche uniquement les fiches actives.',
+    'Archivés': 'Affiche les fiches archivées.',
+    'Toutes': 'Affiche toutes les slides. Videz aussi la recherche pour pouvoir modifier leur ordre.',
+    'Publiées': 'Affiche les slides publiées dont la diffusion est active.',
+    'Brouillons': 'Affiche les slides qui ne sont pas publiées.',
+    'En pause': 'Affiche les slides publiées dont la diffusion est désactivée.',
+    'Toute la semaine': 'Affiche les horaires de tous les jours de la semaine.'
+    ,'Texte': 'Choisit une slide composée d’un titre et d’un message mis en page par le lecteur.'
+    ,'Image': 'Choisit une slide utilisant une image importée ou référencée dans Drive.'
+    ,'Vidéo': 'Choisit une slide vidéo. Déposez le MP4 dans le dossier des médias puis renseignez son lien.'
+    ,'Tous les jours': 'Sélectionne les sept jours de diffusion dans le formulaire.'
+    ,'En semaine': 'Sélectionne uniquement les jours du lundi au vendredi.'
+    ,'Week-end': 'Sélectionne uniquement le samedi et le dimanche.'
+    ,'Dans 30 min': 'Règle la fin du message urgent à 30 minutes à partir de maintenant.'
+    ,'Dans 1 h': 'Règle la fin du message urgent à une heure à partir de maintenant.'
+    ,'Dans 2 h': 'Règle la fin du message urgent à deux heures à partir de maintenant.'
+    ,'Continuer à modifier': 'Revient au formulaire et conserve la saisie non enregistrée.'
+    ,'Quitter le formulaire': 'Ferme le formulaire en abandonnant les changements non enregistrés.'
+  };
+  const links = {
+    'Semaine habituelle':'HORAIRES', 'Absences':'EXCEPTIONS', 'Par date':'PRESENCES', 'Supprimés':'ARCHIVES',
+    'Retour au planning':'HORAIRES', 'Décomptes':'PAYROLL', 'Versements':'PAIEMENTS', 'Corrections':'AJUSTEMENTS',
+    'Documents':'DOCUMENTS', 'Séances':'SEANCES', 'Enfants':'ENFANTS', 'Inscriptions':'INSCRIPTIONS'
+  };
+  const fieldHelp = {
+    PrixHeure:'Prix horaire appliqué au mois sélectionné. Il ne modifie pas le tarif d’un contrat.',
+    RetenuePct:'Pourcentage retenu sur le montant du moniteur. Saisissez le taux confirmé, y compris zéro.',
+    ChargePct:'Pourcentage de charge employeur ajouté au coût. Il est distinct de la retenue du moniteur.',
+    CotisationsValidees:'Confirme que les deux taux ont été vérifiés. Sans cette validation, le décompte reste incomplet.',
+    Minutes:'Différence en minutes : une valeur positive ajoute des heures et une valeur négative en retire.',
+    Montant:'Somme réellement déjà versée pour le mois payé. Aucun virement n’est déclenché ici.',
+    Mois:'Période à laquelle l’écriture ou le tarif se rapporte.',
+    MoniteurID:'Personne à laquelle cette opération est rattachée.',
+    Motif:'Explication de la correction, conservée pour comprendre le changement.',
+    DateEnvoi:'Date à laquelle vous avez déjà envoyé le contrat, à enregistrer sans nouvel envoi.',
+    SeanceID:'Séance à laquelle l’enfant est inscrit.', EnfantID:'Fiche enfant existante à associer à la séance.',
+    Capacite:'Nombre de places disponibles. Les inscriptions sont contrôlées par rapport à cette capacité.',
+    Present:'Décoché, ce champ indique une absence pour la journée concernée.',
+    NomAffiche:'Nom utilisé dans l’affichage piscine, distinct des coordonnées administratives.'
+  };
+  let session = null;
+  let tour = null;
+  let frame = 0;
+  const own = n => !!n?.closest('#help, #adminHelpTour');
+  const visible = n => !!n?.isConnected && !n.closest('[hidden]') && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+  const clean = s => String(s || '').replace(/\s+/g, ' ').trim();
+  const node = (tag, text, cls) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
+  function control(label, fn, cls='btn') {const b=node('button',label,cls);b.type='button';b.addEventListener('click',fn);return b;}
+  function labelOf(n) {
+    if(n.getAttribute('aria-label'))return clean(n.getAttribute('aria-label'));
+    if(n.matches('input,select,textarea')) {
+      const l=n.labels?.[0];
+      if(l){const copy=l.cloneNode(true);copy.querySelectorAll('input,select,textarea,small').forEach(x=>x.remove());return clean(copy.textContent);}
+      return clean(n.getAttribute('placeholder') || n.name || 'Champ du formulaire');
+    }
+    return clean(n.textContent) || clean(n.title);
+  }
+  function keyFor(root) {
+    if(root.id==='editor')return editTable || table;
+    if(root.querySelector('[name="PrixHeure"]'))return 'REMUNERATIONS';
+    if(root.querySelector('[name="Minutes"]'))return 'AJUSTEMENTS';
+    if(root.querySelector('[name="Montant"]'))return 'PAIEMENTS';
+    if(root.querySelector('[name="SeanceID"]'))return 'INSCRIPTIONS';
+    if(root.querySelector('[name="Capacite"]'))return 'SEANCES';
+    if(root.querySelector('[name="Responsable"], [name="Contact"]'))return 'ENFANTS';
+    if(root.querySelector('[name="DateEnvoi"]'))return 'CONTRACTS';
+    if(root.querySelector('[name="StatutFiche"]'))return 'SUIVI';
+    if(root.querySelector('[name="Photo"], [name="NomAffiche"]') && root.id!=='main')return 'MONITEURS';
+    const heading=clean(root.querySelector('h2')?.textContent);
+    if(/contrat|signature/i.test(heading))return 'CONTRACTS';
+    if(/document/i.test(heading))return 'DOCUMENTS';
+    return table;
+  }
+  function context(root) {
+    const key=keyFor(root),page=pages[key] || [clean(document.getElementById('title')?.textContent) || 'Administration','Consultez les informations et les opérations disponibles sur cette page.',[]];
+    const detail=key==='DOSSIER' && typeof dossierSection!=='undefined' ? dossierPages[dossierSection] : null;
+    const isForm=root.matches('dialog');
+    return {key, title:isForm ? 'Aide du formulaire' : detail?.[0] || page[0], description:detail?.[1] || page[1], steps:isForm ? ['Complétez les champs du formulaire.', 'Relisez les informations et utilisez le bouton d’enregistrement adapté.', 'Vous pouvez fermer cette aide pour reprendre exactement votre saisie.'] : page[2], isForm};
+  }
+  function explain(n, ctx) {
+    const raw=labelOf(n);
+    if(n.matches('input,select,textarea')) {
+      let description=fieldHelp[n.name];
+      if(!description && n.id==='search')description='Filtre la liste avec le nom ou le titre recherché, sans modifier les données.';
+      if(!description && n.type==='month')description='Choisit le mois à consulter. Les informations sont rechargées pour cette période.';
+      if(!description && n.closest('#filters'))description='Limite la liste aux éléments correspondant à votre sélection.';
+      if(!description && n.type==='file')description='Sélectionne le fichier à déposer. Le dépôt se fait avec le bouton d’enregistrement du formulaire.';
+      if(!description && n.type==='checkbox')description='Active ou désactive cette option dans le formulaire. Elle est appliquée à l’enregistrement.';
+      if(!description && n.tagName==='SELECT')description='Choisissez la valeur correspondant à cette fiche parmi les options proposées.';
+      if(!description)description='Renseignez « '+raw+' » pour l’élément en cours. La valeur est conservée à l’enregistrement du formulaire.';
+      return {label:raw,description:description+(n.required?' Champ obligatoire.':'')};
+    }
+    if(n.matches('summary'))return {label:raw,description:'Déplie ou replie les informations et les options de cette rubrique.'};
+    if(n.classList.contains('person-link'))return {label:'Ouvrir le dossier',description:actions['Ouvrir le dossier']};
+    if(/^Aperçu de /.test(raw))return {label:'Aperçu de la slide',description:actions.Aperçu};
+    if(/^(Monter|Descendre) /.test(raw))return {label:raw.split(' ')[0]+' la slide',description:'Déplace la slide dans l’ordre de diffusion. Choisissez Toutes et videz la recherche pour réorganiser la liste.'};
+    if(/^Fermer/.test(raw))return {label:raw,description:actions.Fermer};
+    if(/^Retour (aux paiements|à l’équipe)/.test(raw))return {label:raw,description:'Revient à la liste depuis laquelle vous avez ouvert ce dossier.'};
+    if(n.id==='quickConfirm')return {label:raw,description:'Exécute l’action décrite dans la fenêtre de confirmation. Relisez ce message avant de confirmer.'};
+    if(raw==='Retirer' && n.closest('#uploadSummary'))return {label:raw,description:'Retire le fichier sélectionné dans ce formulaire avant son enregistrement. Aucun horaire n’est modifié.'};
+    if(n.id==='add' || /^Ajouter (un |une )/.test(raw) || /^Créer (un |une )/.test(raw))return {label:raw,description:actions[raw] || 'Ouvre un formulaire pour ajouter un élément dans « '+(pages[ctx.key]?.[0] || ctx.title)+' ». L’ajout est appliqué après enregistrement.'};
+    if(raw==='Annuler' && ctx.key==='PAIEMENTS' && !ctx.isForm)return {label:raw,description:'Annule cette écriture de paiement après confirmation. Elle reste dans l’historique et ne participe plus au solde.'};
+    if(raw==='Annuler' && ctx.key==='AJUSTEMENTS' && !ctx.isForm)return {label:raw,description:'Annule cette correction après confirmation. L’historique reste conservé et les minutes sont retirées du calcul.'};
+    if(raw==='Restaurer' && ctx.key==='ARCHIVES')return {label:raw,description:'Restaure cet horaire archivé après confirmation. Il participe de nouveau au planning.'};
+    if(actions[raw])return {label:raw,description:actions[raw]};
+    if(links[raw])return {label:raw,description:'Ouvre la rubrique '+pages[links[raw]][0]+'. '+pages[links[raw]][1]};
+    if(typeof DAYS!=='undefined' && DAYS.includes(raw))return {label:raw,description:'Affiche les horaires du '+raw.toLowerCase()+'.'};
+    if(n.hasAttribute('aria-pressed'))return {label:raw,description:'Sélectionne ce filtre ou cette option. La sélection actuelle est indiquée visuellement.'};
+    if(n.matches('a'))return {label:raw,description:'Ouvre le document ou la ressource indiquée par ce lien.'};
+    return {label:raw,description:'Commande « '+raw+' » du formulaire ou de la page. Vérifiez les indications affichées à proximité avant de l’utiliser.'};
+  }
+  function entries(root,ctx) {
+    const seen=new Set(),out=[];
+    for(const n of root.querySelectorAll('button,a[href],input:not([type="hidden"]),select,textarea,summary')) {
+      if(own(n) || n.dataset.adminHelp!==undefined || !visible(n))continue;
+      const e=explain(n,ctx);if(!e.label)continue;
+      const key=e.label+'|'+e.description+'|'+!!n.disabled;
+      if(seen.has(key))continue;seen.add(key);
+      out.push({...e,target:n,disabled:!!n.disabled,reason:n.disabled?clean(n.title):''});
+    }
+    return out;
+  }
+  function sourceDialog() {return [...document.querySelectorAll('dialog[open]')].filter(n=>!own(n)&&n.id!=='more').pop();}
+  function open(root,trigger) {
+    if(tour?.open)stopTour(false);
+    root=root || sourceDialog() || document.getElementById('main');
+    if(!root)return;
+    const ctx=context(root);
+    session={root,ctx,trigger:trigger || document.activeElement,entries:entries(root,ctx),scroll:[]};
+    const help=document.getElementById('help'),body=help.querySelector('.help-body');
+    document.getElementById('helptitle').textContent='Aide · '+ctx.title;
+    body.replaceChildren();
+    const intro=node('section',undefined,'admin-help-intro'),actionsBar=node('div',undefined,'admin-help-actions');
+    intro.append(node('h3','À quoi sert cette page ?'),node('p',ctx.description));
+    intro.append(node('p','Le guide vous montre les commandes sans les activer. Vous pouvez le quitter à tout moment et reprendre votre saisie.','small muted'));
+    actionsBar.append(control('Faire le tour de cette page',()=>startTour(), 'btn primary'),control('Reprendre ma page',()=>help.close()));
+    intro.append(actionsBar);body.append(intro);
+    const how=node('section');how.append(node('h3','Comment l’utiliser'));const steps=node('ol',undefined,'admin-help-steps');ctx.steps.forEach(s=>steps.append(node('li',s)));how.append(steps);body.append(how);
+    const catalog=node('section',undefined,'admin-help-catalog');catalog.append(node('h3',ctx.isForm?'Les champs et les boutons':'Les boutons et les filtres de cette page'));
+    for(const entry of session.entries){
+      const row=node('article',undefined,'admin-help-entry');row.append(node('h3',entry.label),node('p',entry.description));
+      if(entry.disabled)row.append(node('p','Indisponible actuellement'+(entry.reason?' : '+entry.reason:'. La disponibilité dépend des données, de la période ou de vos droits.'),'admin-help-status'));
+      row.append(control('Me montrer « '+entry.label+' »',()=>startTour(entry.target),'btn quiet'));catalog.append(row);
+    }
+    if(!session.entries.length)catalog.append(node('p','Aucune commande chargée pour le moment. Fermez puis rouvrez l’aide après le chargement.'));
+    body.append(catalog);
+    if(!help.open)help.showModal();
+    body.scrollTop=0;actionsBar.querySelector('button').focus();
+  }
+  function rememberScroll(root){
+    const nodes=new Set([document.scrollingElement,root,...root.querySelectorAll('*')]);
+    return [...nodes].filter(n=>n && (n.scrollTop||n.scrollLeft||n.scrollHeight>n.clientHeight)).map(n=>[n,n.scrollTop,n.scrollLeft]);
+  }
+  function ensureTour(){
+    if(tour)return;
+    tour=node('dialog');tour.id='adminHelpTour';tour.setAttribute('aria-labelledby','adminTourTitle');tour.setAttribute('aria-describedby','adminTourText');
+    const ring=node('div',undefined,'admin-tour-ring');ring.setAttribute('aria-hidden','true');
+    const card=node('section',undefined,'admin-tour-card'),progress=node('p',undefined,'admin-tour-progress');progress.id='adminTourProgress';progress.setAttribute('aria-live','polite');
+    const title=node('h2');title.id='adminTourTitle';title.tabIndex=-1;
+    const text=node('p');text.id='adminTourText';
+    const foot=node('div',undefined,'admin-tour-footer'),back=control('Précédent',()=>move(-1)),next=control('Suivant',()=>move(1),'btn primary');back.id='adminTourBack';next.id='adminTourNext';foot.append(back,next);
+    card.append(progress,title,text,foot,control('Quitter le guide',()=>stopTour(),'admin-tour-stop'));tour.append(ring,card);document.body.append(tour);
+    tour.addEventListener('cancel',e=>{e.preventDefault();stopTour()});
+    tour.addEventListener('close',()=>finishTour());
+    tour.addEventListener('keydown',e=>{if(e.key==='ArrowRight'){e.preventDefault();move(1)}if(e.key==='ArrowLeft'){e.preventDefault();move(-1)}});
+    for(const event of ['resize','scroll'])window.addEventListener(event,()=>{if(tour.open){cancelAnimationFrame(frame);frame=requestAnimationFrame(position)}},true);
+  }
+  function startTour(target){
+    if(!session?.root.isConnected)return;
+    session.entries=entries(session.root,session.ctx);
+    const heading=session.root.querySelector(session.ctx.isForm?'h2':'#title');
+    session.steps=[{label:session.ctx.title,description:session.ctx.description,target:heading},...session.entries];
+    session.index=target?Math.max(0,session.steps.findIndex(s=>s.target===target)):0;
+    session.scroll=rememberScroll(session.root);
+    ensureTour();document.getElementById('help').close();tour.showModal();renderStep();
+  }
+  function move(delta){
+    if(!tour?.open||!session)return;
+    let i=session.index+delta;
+    while(i>=0 && i<session.steps.length && !visible(session.steps[i].target))i+=delta;
+    if(i>=session.steps.length){stopTour();return}if(i<0)return;
+    session.index=i;renderStep();
+  }
+  function renderStep(){
+    const item=session.steps[session.index],available=visible(item.target);
+    document.getElementById('adminTourProgress').textContent='Étape '+(session.index+1)+' sur '+session.steps.length;
+    const title=document.getElementById('adminTourTitle');title.textContent=item.label;
+    document.getElementById('adminTourText').textContent=item.description+(item.disabled?' Ce bouton est actuellement indisponible.'+(item.reason?' '+item.reason:''):'')+(!available?' Cet élément n’est plus affiché ; passez à l’étape suivante.':'');
+    document.getElementById('adminTourBack').disabled=session.index===0;
+    document.getElementById('adminTourNext').textContent=session.index===session.steps.length-1?'Terminer':'Suivant';
+    if(available)item.target.scrollIntoView({block:'center',inline:'nearest',behavior:'auto'});
+    position();title.focus({preventScroll:true});
+  }
+  function position(){
+    if(!tour?.open||!session)return;
+    const item=session.steps[session.index],ring=tour.querySelector('.admin-tour-ring'),card=tour.querySelector('.admin-tour-card');
+    const width=window.innerWidth,height=window.innerHeight;
+    let r=visible(item.target)?item.target.getBoundingClientRect():null;
+    if(r && (r.bottom<0||r.top>height||r.right<0||r.left>width))r=null;
+    const x=r?Math.max(5,r.left-5):width/2,y=r?Math.max(5,r.top-5):height/3,w=r?Math.max(0,Math.min(width-5,r.right+5)-x):0,h=r?Math.max(0,Math.min(height-5,r.bottom+5)-y):0;
+    Object.assign(ring.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px',borderWidth:r?'3px':'0'});
+    const cw=Math.min(width-32,410),ch=card.getBoundingClientRect().height;
+    let top=r && r.bottom+ch+24<height?r.bottom+16:r && r.top-ch-24>0?r.top-ch-16:Math.max(12,height-ch-16);
+    let left=Math.max(12,Math.min(width-cw-16,r?r.left:((width-cw)/2)));
+    if(width<=560){left=12;top=r && r.top>ch+24?12:Math.max(12,height-ch-12)}
+    Object.assign(card.style,{left:left+'px',top:top+'px',bottom:'auto'});
+  }
+  function finishTour(){
+    cancelAnimationFrame(frame);
+    if(!session)return;
+    for(const [n,top,left] of session.scroll||[])if(n.isConnected){n.scrollTop=top;n.scrollLeft=left;}
+    session.scroll=[];
+    if(session.trigger?.isConnected && visible(session.trigger))session.trigger.focus({preventScroll:true});
+  }
+  function stopTour(){if(tour?.open)tour.close();}
+  function injectFormHelp(){
+    for(const d of document.querySelectorAll('dialog[open]')){
+      if(own(d)||['more','discard'].includes(d.id)||d.querySelector('[data-admin-help]'))continue;
+      const head=d.querySelector('.dialog-head') || d.querySelector('.form-scroll');if(!head)continue;
+      const b=control('Aide',()=>open(d,b),'btn admin-help-form-button');b.dataset.adminHelp='';b.setAttribute('aria-label','Aide de ce formulaire');head.append(b);
+    }
+  }
+  // The historical video editor and bootstrap still resolve these references
+  // by ID. Keep the original nodes available when replacing the general help.
+  const references=node('div');references.hidden=true;
+  for(const id of ['mediaFolderLink','sheetlink']){const link=document.getElementById(id);if(link)references.append(link);}
+  document.body.append(references);
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    if(b.id==='helpButton' || (b.closest('#moremenu') && clean(b.textContent)==='Aide')){
+      e.preventDefault();e.stopImmediatePropagation();const more=document.getElementById('more');if(more.open)more.close();open(null,b);
+    }
+  },true);
+  document.getElementById('help').addEventListener('close',()=>{
+    // Native dialogs keep their original form open. Focus restoration never
+    // clicks a control and never modifies the application dirty state.
+    if(!tour?.open && session?.trigger?.isConnected && visible(session.trigger))session.trigger.focus({preventScroll:true});
+  });
+  new MutationObserver(injectFormHelp).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open']});
+  injectFormHelp();
+  return {open,context,entries,explain,pages};
+})();
+</script>

@@ -1,0 +1,15 @@
+[
+  "Storage",
+  "Auth",
+  "Sources",
+  "Identity",
+  "Profile",
+  "Domain",
+  "Timesheets",
+  "Documents",
+  "Mail",
+  "Setup",
+  "LegacyAdmin",
+  "Main",
+  "DirectorCorrection"
+]
